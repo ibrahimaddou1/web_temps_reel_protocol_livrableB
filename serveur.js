@@ -285,10 +285,24 @@ websocket.on('error', err => {
 });
 // Le broker associe un identifiant à chaque connexion cliente.
 const clients = new Map();
+function diffuserPresence(id, status, connexionExclue) {
+  const message = JSON.stringify({ action: 'presence', payload: { id, status } });
+  for (const connexion of clients.values()) {
+    if (connexion !== connexionExclue && connexion.readyState === 1) {
+      connexion.send(message, err => {
+        if (err) console.error('Échec de notification de présence :', err.message);
+      });
+    }
+  }
+}
+
 websocket.on('connection', connexion => {
   let clientId;
   connexion.on('close', () => {
-    if (clients.get(clientId) === connexion) clients.delete(clientId);
+    if (clientId && clients.get(clientId) === connexion) {
+      clients.delete(clientId);
+      diffuserPresence(clientId, 'offline');
+    }
   });
 
   connexion.on('message', data => {
@@ -312,6 +326,15 @@ websocket.on('connection', connexion => {
       clientId = id.trim();
       clients.set(clientId, connexion);
       connexion.send(JSON.stringify({ action: 'registered', payload: { id: clientId } }));
+      for (const idEnLigne of clients.keys()) {
+        if (idEnLigne !== clientId) {
+          connexion.send(JSON.stringify({
+            action: 'presence',
+            payload: { id: idEnLigne, status: 'online' },
+          }));
+        }
+      }
+      diffuserPresence(clientId, 'online', connexion);
       return;
     }
     if (!clientId) {
@@ -366,5 +389,4 @@ readline.createInterface({ input: process.stdin }).on('line', async ligne => {
     console.error(err.message);
   }
 });
-
 
