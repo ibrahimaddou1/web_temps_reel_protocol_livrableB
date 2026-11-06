@@ -134,7 +134,7 @@ Dans le terminal d’Ibrahim, saisir :
 imal Salut !
 ```
 
-Imal reçoit un message avec metadata.source, metadata.target, metadata.timestamp et payload.texte. Il peut répondre en saisissant ibrahim suivi de son texte. Le broker utilise l’identifiant de la connexion comme source. Un destinataire absent provoque une erreur affichée chez l’expéditeur. Les clients de ce test se connectent au même serveur.
+Imal reçoit un message avec metadata.source, metadata.target, metadata.timestamp et payload.texte. Il peut répondre en saisissant ibrahim suivi de son texte. Le broker utilise l’identifiant de la connexion comme source. Un destinataire absent entraîne une mise en file avec confirmation queued. Les clients de ce test se connectent au même serveur.
 
 ## Broadcast WebSocket
 
@@ -164,3 +164,9 @@ npm run client -- ws://localhost:3000/ws imal
 ```
 
 Imal reçoit les deux messages dans l’ordre. La file est conservée tant que le broker tourne, sans limite de durée ni de taille. Un redémarrage efface les messages. Les broadcasts concernent uniquement les clients connectés. La livraison se base sur la réussite de l’envoi WebSocket, sans accusé de lecture du destinataire.
+
+## Messages HTTP /ingress
+
+Les messages exigent metadata.source et metadata.target sous forme d’origines HTTP, et metadata.timestamp au format ISO avec fuseau horaire. La commande message du serveur construit ces champs.
+
+Le premier message est accepté avec 201. Le même quadruplet action, source, target et timestamp reçoit 208. Cette convention de doublon reste à valider avec la classe. La mémoire des doublons et les files sont effacées au redémarrage.

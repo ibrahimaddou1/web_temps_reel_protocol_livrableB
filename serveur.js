@@ -26,7 +26,7 @@ const noms = new Map([
   ['http://172.20.10.4:3000', 'Imal'],
   ['http://172.20.10.5:3001', 'Zack'],
 ]);
-const actionsUniques = new Set();  
+const messagesRecus = new Set();
 const app = express();
 app.use(express.json());
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -159,15 +159,24 @@ app.post('/forget', (req, res) => {
   res.sendStatus(204);
 });
 
+function metadataValide(metadata) {
+  return metadata && origine(metadata.source) && origine(metadata.target) &&
+    typeof metadata.timestamp === 'string' &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(metadata.timestamp) &&
+    Number.isFinite(Date.parse(metadata.timestamp));
+}
+
 app.post('/ingress', (req, res) => {
   const pair = origine(req.get('Origin'));
-  if (!pair || !messageValide(req.body)) return res.sendStatus(400);
-  const etat = pairs.get(pair);
-  if (etat?.statut !== 'Ack') return res.sendStatus(403);
-  if (actionsUniques.has(req.body.action) && etat.actions.has(req.body.action)) return res.sendStatus(409);
-  const nom = noms.get(pair) || pair;
-  console.log('Message reçu de', nom, req.body);
-  if (actionsUniques.has(req.body.action)) etat.actions.add(req.body.action);
+  if (!pair || !messageValide(req.body) || !metadataValide(req.body.metadata)) {
+    return res.sendStatus(400);
+  }
+  if (pairs.get(pair)?.statut !== 'Ack') return res.sendStatus(403);
+  const { action, metadata } = req.body;
+  const cle = JSON.stringify([action, metadata.source, metadata.target, metadata.timestamp]);
+  if (messagesRecus.has(cle)) return res.sendStatus(208);
+  console.log('Message reçu de', noms.get(pair) || pair, req.body);
+  messagesRecus.add(cle);
   res.sendStatus(201);
 });
 
@@ -202,10 +211,14 @@ setInterval(() => {
 
 async function diffuser(message) {
   if (!messageValide(message)) throw new Error('Message invalide');
+  const timestamp = new Date().toISOString();
   await Promise.all([...pairs].filter(([, etat]) => etat.statut === 'Ack')
     .map(async ([pair]) => {
       try {
-        await appeler(pair, '/ingress', 'post', message, 201);
+        await appeler(pair, '/ingress', 'post', {
+          ...message,
+          metadata: { source: locale, target: pair, timestamp },
+        }, 201);
       } catch (err) {
         console.error('Envoi échoué vers', pair, err.message);
       }
@@ -285,6 +298,30 @@ websocket.on('error', err => {
 });
 // Le broker associe un identifiant à chaque connexion cliente.
 const clients = new Map();
+const filesMessages = new Map();
+const livraisons = new Set();
+
+async function livrerMessages(id) {
+  if (livraisons.has(id)) return;
+  livraisons.add(id);
+  const file = filesMessages.get(id);
+  try {
+    while (file?.length) {
+      const client = clients.get(id);
+      if (!client || client.readyState !== 1) break;
+      await new Promise((resolve, reject) => {
+        client.send(file[0], err => err ? reject(err) : resolve());
+      });
+      file.shift();
+    }
+    if (file?.length === 0) filesMessages.delete(id);
+  } catch (err) {
+    console.error('Livraison interrompue :', err.message);
+  } finally {
+    livraisons.delete(id);
+  }
+}
+
 function diffuserPresence(id, status, connexionExclue) {
   const message = JSON.stringify({ action: 'presence', payload: { id, status } });
   for (const connexion of clients.values()) {
@@ -335,6 +372,7 @@ websocket.on('connection', connexion => {
         }
       }
       diffuserPresence(clientId, 'online', connexion);
+      livrerMessages(clientId);
       return;
     }
     if (!clientId) {
@@ -362,16 +400,16 @@ websocket.on('connection', connexion => {
       }
       return;
     }
+    if (!filesMessages.has(target)) filesMessages.set(target, []);
+    filesMessages.get(target).push(messageSortant);
     const destinataire = clients.get(target);
     if (!destinataire || destinataire.readyState !== 1) {
-      connexion.send(JSON.stringify({ type: 'error', message: 'Destinataire non connecté' }));
-      return;
+      connexion.send(JSON.stringify({
+        action: 'queued',
+        payload: { target, texte: 'Message conservé en attente du destinataire' },
+      }));
     }
-    destinataire.send(JSON.stringify({
-      action: 'message',
-      metadata: { source: clientId, target, timestamp: new Date().toISOString() },
-      payload: message.payload,
-    }));
+    livrerMessages(target);
   });
 });
 
