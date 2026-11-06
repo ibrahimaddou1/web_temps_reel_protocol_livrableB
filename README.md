@@ -29,7 +29,7 @@ Une annonce reste valide pendant 30 secondes. La renouveler avant expiration, pa
 Installer Node.js et npm, puis exécuter dans le dossier du projet :
 
 ```bash
-npm ci
+npm install
 ```
 
 ## Connexion WebSocket — Étape A
@@ -111,6 +111,14 @@ npm run client -- ws://localhost:3000/ws imal
 ```
 
 Chaque client envoie un message register avec son identifiant. Le serveur confirme avec registered. Deux clients connectés ne peuvent pas utiliser le même identifiant.
+
+Après son inscription, un client reçoit les événements `presence` des clients déjà connectés. Les autres clients inscrits reçoivent aussi un événement quand un client arrive ou se déconnecte. Le format est :
+
+```json
+{"action":"presence","payload":{"id":"imal","status":"online"}}
+```
+
+`status` vaut `online` à l'inscription et `offline` à la déconnexion. Le client affiche ces événements dans le terminal.
 
 Dans le terminal d’Ibrahim, saisir :
 
