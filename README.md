@@ -82,3 +82,40 @@ message {"action":"bonjour","payload":{"texte":"Salut !"}}
 
 Le destinataire affiche `Message reçu de` avec le nom ou l’URL de l’expéditeur et le message.
 
+
+## Enregistrement automatique et messages privés — Livrable B
+
+Démarrer le tracker :
+
+```bash
+npm run tracker -- 4000
+```
+
+Dans un autre terminal, démarrer le serveur avec son URL, l’URL du tracker et son identifiant :
+
+```bash
+npm start -- http://localhost:3000 http://localhost:4000 serveur-ibrahim
+```
+
+Le serveur renouvelle automatiquement son annonce toutes les 10 secondes. Vérifier sa présence avec :
+
+```bash
+curl http://localhost:4000/peers
+```
+
+Démarrer deux clients dans deux terminaux :
+
+```bash
+npm run client -- ws://localhost:3000/ws ibrahim
+npm run client -- ws://localhost:3000/ws imal
+```
+
+Chaque client envoie un message register avec son identifiant. Le serveur confirme avec registered. Deux clients connectés ne peuvent pas utiliser le même identifiant.
+
+Dans le terminal d’Ibrahim, saisir :
+
+```text
+imal Salut !
+```
+
+Imal reçoit un message avec metadata.source, metadata.target, metadata.timestamp et payload.texte. Il peut répondre en saisissant ibrahim suivi de son texte. Le broker utilise l’identifiant de la connexion comme source. Un destinataire absent provoque une erreur affichée chez l’expéditeur. Les clients de ce test se connectent au même serveur.

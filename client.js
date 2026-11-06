@@ -2,6 +2,8 @@
 const WebSocket = require('ws');
 const readline = require('node:readline');
 const adresse = process.argv[2] || 'ws://localhost:3000/ws';
+const clientId = process.argv[3];
+let identifie = false;
 let connexion;
 let attentePing;
 let rl;
@@ -44,6 +46,10 @@ function creerConnexion() {
 function ecouterConnexion() {
   connexion.on('open', () => {
     console.log('Connecté au serveur WebSocket', adresse);
+    identifie = false;
+    if (clientId) {
+      connexion.send(JSON.stringify({ action: 'register', payload: { id: clientId } }));
+    }
     tentative = 0;
     attendrePing();
 
@@ -59,6 +65,23 @@ function ecouterConnexion() {
           return;
         }
 
+        if (clientId) {
+          if (!identifie) {
+            console.log('Identification en cours ou refusée');
+            return;
+          }
+          const separateur = texte.indexOf(' ');
+          if (separateur < 1 || !texte.slice(separateur + 1).trim()) {
+            console.log('Usage : destinataire texte du message');
+            return;
+          }
+          connexion.send(JSON.stringify({
+            action: 'message',
+            metadata: { target: texte.slice(0, separateur) },
+            payload: { texte: texte.slice(separateur + 1) },
+          }));
+          return;
+        }
         const message = {
           action: 'bonjour',
           payload: {
@@ -71,7 +94,7 @@ function ecouterConnexion() {
       });
     }
 
-    console.log('Écris un message :');
+    console.log(clientId ? 'Écris : destinataire texte du message' : 'Écris un message :');
   });
 
   connexion.on('ping', attendrePing);
@@ -89,6 +112,10 @@ function ecouterConnexion() {
   });
 
   connexion.on('message', data => {
+    try {
+      const message = JSON.parse(data.toString());
+      if (message.action === 'registered') identifie = true;
+    } catch {}
     console.log('Message reçu du serveur :', data.toString());
   });
 }
