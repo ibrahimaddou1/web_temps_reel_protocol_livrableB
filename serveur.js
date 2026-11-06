@@ -305,7 +305,7 @@ websocket.on('connection', connexion => {
     }
     if (message.action === 'register') {
       const id = message.payload?.id;
-      if (clientId || typeof id !== 'string' || !id.trim() || clients.has(id.trim())) {
+      if (clientId || typeof id !== 'string' || !id.trim() || id.trim() === '*' || clients.has(id.trim())) {
         connexion.send(JSON.stringify({ type: 'error', message: 'Identifiant invalide ou déjà utilisé' }));
         return;
       }
@@ -326,6 +326,17 @@ websocket.on('connection', connexion => {
     const target = message.metadata?.target;
     if (typeof target !== 'string' || !target.trim()) {
       connexion.send(JSON.stringify({ type: 'error', message: 'Destinataire requis' }));
+      return;
+    }
+    const messageSortant = JSON.stringify({
+      action: 'message',
+      metadata: { source: clientId, target, timestamp: new Date().toISOString() },
+      payload: message.payload,
+    });
+    if (target === '*') {
+      for (const [id, client] of clients) {
+        if (id !== clientId && client.readyState === 1) client.send(messageSortant);
+      }
       return;
     }
     const destinataire = clients.get(target);

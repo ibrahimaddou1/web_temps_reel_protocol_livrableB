@@ -119,3 +119,13 @@ imal Salut !
 ```
 
 Imal reçoit un message avec metadata.source, metadata.target, metadata.timestamp et payload.texte. Il peut répondre en saisissant ibrahim suivi de son texte. Le broker utilise l’identifiant de la connexion comme source. Un destinataire absent provoque une erreur affichée chez l’expéditeur. Les clients de ce test se connectent au même serveur.
+
+## Broadcast WebSocket
+
+Depuis un client identifié, envoyer un message à tous les autres clients identifiés et connectés au même broker :
+
+```text
+* Bonjour à tous !
+```
+
+La convention WebSocket est metadata.target = "*". L’expéditeur ne reçoit pas sa propre diffusion. L’identifiant "*" est réservé. Les messages privés fonctionnent avec le même format en indiquant l’identifiant du destinataire.
