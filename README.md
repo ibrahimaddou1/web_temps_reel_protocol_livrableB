@@ -129,3 +129,22 @@ Depuis un client identifié, envoyer un message à tous les autres clients ident
 ```
 
 La convention WebSocket est metadata.target = "*". L’expéditeur ne reçoit pas sa propre diffusion. L’identifiant "*" est réservé. Les messages privés fonctionnent avec le même format en indiquant l’identifiant du destinataire.
+
+## File de messages privés
+
+Si un destinataire est déconnecté, le broker conserve les messages privés dans une file en mémoire et répond à l’expéditeur avec l’action queued. Dès que le destinataire se reconnecte et s’identifie avec le même id, les messages sont envoyés dans leur ordre de réception.
+
+Pour tester, fermer le client imal avec Ctrl+C. Depuis ibrahim, saisir deux messages :
+
+```text
+imal Premier message
+imal Deuxième message
+```
+
+Relancer ensuite le client :
+
+```bash
+npm run client -- ws://localhost:3000/ws imal
+```
+
+Imal reçoit les deux messages dans l’ordre. La file est conservée tant que le broker tourne, sans limite de durée ni de taille. Un redémarrage efface les messages. Les broadcasts concernent uniquement les clients connectés. La livraison se base sur la réussite de l’envoi WebSocket, sans accusé de lecture du destinataire.
