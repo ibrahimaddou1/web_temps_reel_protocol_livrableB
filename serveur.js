@@ -218,8 +218,30 @@ app.use((err, req, res, next) => {
   res.sendStatus(500);
 });
 
+const trackerUrl = process.argv[3] || 'http://localhost:4000';
+const serveurId = process.argv[4] || locale;
+let annonceEnCours = false;
+
+async function annoncer() {
+  if (annonceEnCours) return;
+  annonceEnCours = true;
+  try {
+    const reponse = await axios.post(trackerUrl + '/announce', {
+      id: serveurId,
+      wsUrl: locale.replace('http:', 'ws:') + '/ws',
+    }, { timeout: 15000 });
+    if (reponse.status === 201) console.log('Serveur enregistré auprès du tracker');
+  } catch (err) {
+    console.error('Annonce au tracker échouée :', err.message);
+  } finally {
+    annonceEnCours = false;
+  }
+}
+
 const serveur = app.listen(port, '0.0.0.0', () => {
   console.log('Serveur prêt', locale);
+  annoncer();
+  setInterval(annoncer, 10000).unref();
   console.log('Commandes : connect URL ou message {"action":"bonjour","payload":{}}');
   if (process.argv[2] === 'connect') {
     const pair = origine(process.argv[3]);
@@ -261,40 +283,64 @@ websocket.on('connection', connexion => {
 websocket.on('error', err => {
   console.error('Erreur serveur WebSocket :', err.message);
 });
-//******/
-// Gestion de l'envoi et de la réception des messages WebSocket
-websocket.on('connection', (connexion) => {
-
-  connexion.on('message', (data) => {
-    try {
-      const message = JSON.parse(data.toString());
-
-      if (!messageValide(message)) {
-        connexion.send(JSON.stringify({
-          type: 'error',
-          message: 'Format de message invalide'
-        }));
-        return;
-      }
-
-      console.log('Message WebSocket reçu :', message);
-
-      connexion.send(JSON.stringify({
-        type: 'message',
-        action: 'confirmation',
-        payload: message.payload
-      }));
-
-    } catch (err) {
-      connexion.send(JSON.stringify({
-        type: 'error',
-        message: 'JSON invalide'
-      }));
-    }
+// Le broker associe un identifiant à chaque connexion cliente.
+const clients = new Map();
+websocket.on('connection', connexion => {
+  let clientId;
+  connexion.on('close', () => {
+    if (clients.get(clientId) === connexion) clients.delete(clientId);
   });
 
+  connexion.on('message', data => {
+    let message;
+    try {
+      message = JSON.parse(data.toString());
+    } catch {
+      connexion.send(JSON.stringify({ type: 'error', message: 'JSON invalide' }));
+      return;
+    }
+    if (!messageValide(message)) {
+      connexion.send(JSON.stringify({ type: 'error', message: 'Format de message invalide' }));
+      return;
+    }
+    if (message.action === 'register') {
+      const id = message.payload?.id;
+      if (clientId || typeof id !== 'string' || !id.trim() || clients.has(id.trim())) {
+        connexion.send(JSON.stringify({ type: 'error', message: 'Identifiant invalide ou déjà utilisé' }));
+        return;
+      }
+      clientId = id.trim();
+      clients.set(clientId, connexion);
+      connexion.send(JSON.stringify({ action: 'registered', payload: { id: clientId } }));
+      return;
+    }
+    if (!clientId) {
+      connexion.send(JSON.stringify({ type: 'error', message: 'Identification requise' }));
+      return;
+    }
+    // Conserver la confirmation des échanges simples du livrable A.
+    if (message.action !== 'message') {
+      connexion.send(JSON.stringify({ type: 'message', action: 'confirmation', payload: message.payload }));
+      return;
+    }
+    const target = message.metadata?.target;
+    if (typeof target !== 'string' || !target.trim()) {
+      connexion.send(JSON.stringify({ type: 'error', message: 'Destinataire requis' }));
+      return;
+    }
+    const destinataire = clients.get(target);
+    if (!destinataire || destinataire.readyState !== 1) {
+      connexion.send(JSON.stringify({ type: 'error', message: 'Destinataire non connecté' }));
+      return;
+    }
+    destinataire.send(JSON.stringify({
+      action: 'message',
+      metadata: { source: clientId, target, timestamp: new Date().toISOString() },
+      payload: message.payload,
+    }));
+  });
 });
-//*****/
+
 
 readline.createInterface({ input: process.stdin }).on('line', async ligne => {
   try {
