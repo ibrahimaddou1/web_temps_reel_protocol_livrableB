@@ -1,5 +1,29 @@
 # TP WebSocket et P2P
 
+## Tracker HTTP — Livrable B
+
+Démarrer le tracker dans un terminal :
+
+```bash
+npm run tracker -- 4000
+```
+
+Dans un autre terminal, annoncer un serveur WebSocket (exemples pour Bash/WSL) :
+
+```bash
+curl -i -X POST http://localhost:4000/announce -H 'Content-Type: application/json' -d '{"id":"serveur-ibrahim","wsUrl":"ws://localhost:3000/ws"}'
+```
+
+Consulter les pairs en ligne :
+
+```bash
+curl http://localhost:4000/peers
+```
+
+`POST /announce` renvoie 201 à la création, 200 au renouvellement, 400 pour un format invalide et 409 si un identifiant actif désigne une autre URL. `GET /peers` renvoie 200 avec la liste dans `peers`.
+
+Une annonce reste valide pendant 30 secondes. La renouveler avant expiration, par exemple toutes les 10 secondes. Sans renouvellement, le pair disparaît de la liste. Les données sont conservées en mémoire. À ce stade, l’annonce se fait manuellement avec curl.
+
 ## Installation
 
 Installer Node.js et npm, puis exécuter dans le dossier du projet :
@@ -57,3 +81,4 @@ message {"action":"bonjour","payload":{"texte":"Salut !"}}
 ```
 
 Le destinataire affiche `Message reçu de` avec le nom ou l’URL de l’expéditeur et le message.
+

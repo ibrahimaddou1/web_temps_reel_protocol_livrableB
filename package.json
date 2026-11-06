@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "tracker": "node tracker.js",
     "start": "node serveur.js",
     "client": "node client.js",
     "connect": "node serveur.js connect"
@@ -13,3 +14,4 @@
     "ws": "^8.22.1"
   }
 }
+
