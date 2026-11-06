@@ -94,7 +94,7 @@ function ecouterConnexion() {
       });
     }
 
-    console.log(clientId ? 'Écris : destinataire texte du message' : 'Écris un message :');
+    console.log(clientId ? 'Écris : destinataire texte du message (ou * texte pour tous)' : 'Écris un message :');
   });
 
   connexion.on('ping', attendrePing);
